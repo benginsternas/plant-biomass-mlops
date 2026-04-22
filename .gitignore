@@ -1,0 +1,35 @@
+# --- Daten und Datensätze ---
+# Schließt den Bilderordner und alle CSV/Excel-Label-Dateien aus
+images_med_res/
+*.csv
+*.xlsx
+*.xls
+
+# --- Python & Virtuelle Umgebungen ---
+# Verhindert das Hochladen deiner lokalen Python-Umgebung
+.venv/
+venv/
+env/
+bin/
+lib/
+__pycache__/
+*.pyc
+
+# --- Modell-Checkpoints & Logs ---
+# Verhindert das Hochladen von großen Model-Gewichten (z.B. .pth oder .pt)
+*.pth
+*.pt
+*.h5
+# training.log soll laut Struktur vorhanden sein, aber oft ignoriert man lokale Logs
+# Falls du training.log doch hochladen willst, kommentiere die nächste Zeile aus:
+# *.log
+
+# --- IDE & System-spezifische Dateien ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Temporäre Dateien ---
+tmp/
+temp/
