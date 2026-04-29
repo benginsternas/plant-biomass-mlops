@@ -40,11 +40,38 @@ plt.tight_layout()
 plt.savefig('figures/sample_images.png')
 
 # 3. Metadata correlations
-plt.figure(figsize=(8, 6))
-sns.heatmap(df.select_dtypes(include=[np.number]).corr(), annot=True, cmap='coolwarm')
-plt.title('Correlation Heatmap')
-plt.savefig('figures/correlation_heatmap.png')
+#plt.figure(figsize=(8, 6))
+#sns.heatmap(df.select_dtypes(include=[np.number]).corr(), annot=True, cmap='coolwarm')
+#plt.title('Correlation Heatmap')
+#plt.savefig('figures/correlation_heatmap.png')
+# 3. Optimierte Correlation Heatmap
+plt.figure(figsize=(12, 10)) # Deutlich größeres Bild
 
+# Nur relevante, numerische Spalten auswählen (IDs und Zeitstempel weglassen)
+relevant_cols = [
+    'fresh_weight_total', 'fresh_weight_shoot', 'fresh_weight_root', 
+    'height_shoot', 'age_days', 'temperature', 'humidity', 
+    'luminancelux', 'total_leaves'
+]
+
+# Prüfen, welche dieser Spalten tatsächlich in deiner CSV existieren
+existing_cols = [c for c in relevant_cols if c in df.columns]
+corr_matrix = df[existing_cols].corr()
+
+# Heatmap zeichnen
+sns.heatmap(
+    corr_matrix, 
+    annot=True,          # Zahlen anzeigen
+    fmt=".2f",           # Nur 2 Nachkommastellen
+    cmap='coolwarm',     # Schöner Blau-Rot-Kontrast
+    linewidths=0.5,      # Kleine Lücken zwischen den Kästchen
+    annot_kws={"size": 8} # Kleinere Schrift für die Zahlen
+)
+
+plt.title('Relevante Merkmals-Korrelationen', fontsize=15)
+plt.xticks(rotation=45, ha='right') # Labels drehen, damit sie nicht überlappen
+plt.tight_layout()
+plt.savefig(os.path.join(FIGURES_DIR, 'correlation_heatmap.png'))
 # 4. Temporal analysis
 plt.figure(figsize=(8, 5))
 sns.scatterplot(data=df, x='age_days', y='fresh_weight_total')

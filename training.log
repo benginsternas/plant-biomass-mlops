@@ -6,3 +6,11 @@ Epoch 1: Loss nan
 2026-04-28 18:00:29,154 - Epoch 1: Train_Loss=0.0398, Val_Loss=0.0348
 2026-04-28 18:03:51,556 - Epoch 2: Train_Loss=0.0074, Val_Loss=0.0163
 2026-04-28 18:17:54,161 - Epoch 3: Train_Loss=0.0044, Val_Loss=0.0085
+2026-04-29 17:27:59,804 - Start: Git=5e5abe4d32a39e6210feb7cb23585956eb5bd607, Epochs=3, LR=0.0001, MaxWeight=2.113
+2026-04-29 17:32:26,128 - Epoch 1: Train_Loss=0.0392, Val_Loss=0.0268
+2026-04-29 17:37:03,525 - Epoch 2: Train_Loss=0.0092, Val_Loss=0.0114
+2026-04-29 17:41:13,771 - Epoch 3: Train_Loss=0.0040, Val_Loss=0.0062
+2026-04-29 18:01:27,819 - Start: Git=5e5abe4d32a39e6210feb7cb23585956eb5bd607, Epochs=3, LR=0.0001, MaxWeight=2.113
+2026-04-29 18:04:52,928 - Epoch 1: Train_Loss=0.0365, Val_Loss=0.0253
+2026-04-29 18:08:18,728 - Epoch 2: Train_Loss=0.0090, Val_Loss=0.0073
+2026-04-29 18:11:49,450 - Epoch 3: Train_Loss=0.0044, Val_Loss=0.0072
