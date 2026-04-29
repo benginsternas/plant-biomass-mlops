@@ -1,0 +1,3 @@
+Final_Train_Loss: 0.0044
+Final_Val_Loss: 0.0085
+Max_Weight_Scale: 2.113

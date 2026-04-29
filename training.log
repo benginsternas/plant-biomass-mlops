@@ -1,0 +1,8 @@
+Start training: epochs=3, lr=0.001
+Start training: epochs=3, lr=0.001
+Start training: epochs=3, lr=0.001
+Epoch 1: Loss nan
+2026-04-28 17:56:52,294 - Start: Git=8369e5f97b9344c58441777fec28797c4b269421, Epochs=3, LR=0.0001, MaxWeight=2.113
+2026-04-28 18:00:29,154 - Epoch 1: Train_Loss=0.0398, Val_Loss=0.0348
+2026-04-28 18:03:51,556 - Epoch 2: Train_Loss=0.0074, Val_Loss=0.0163
+2026-04-28 18:17:54,161 - Epoch 3: Train_Loss=0.0044, Val_Loss=0.0085

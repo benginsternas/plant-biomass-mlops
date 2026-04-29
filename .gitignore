@@ -1,5 +1,6 @@
 # --- Daten und Datensätze ---
 # Schließt den Bilderordner und alle CSV/Excel-Label-Dateien aus
+mlops_biomass_data/
 images_med_res/
 *.csv
 *.xlsx
