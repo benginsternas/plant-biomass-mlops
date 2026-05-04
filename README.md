@@ -2,7 +2,7 @@ Plant Biomass Prediciton - MLOps Praktikum 1 - Gruppe 2
 
 This project implements a machine learning pipeling for plant biomass using top-down images of plants. 
 The machine learning pipeline includes Exploratory Data Analysis, a model training workflow using PyTorch,
-and automated logging.
+git and automated logging.
 
 1. Dataset Description & Statistics
 
@@ -14,24 +14,39 @@ and automated logging.
 2. Exploratory Data Analysis
 
     2.1 Target Distribution
+        By looking at the graph, we can see that the biomass labels are right-skewed.
+        This means that we have a high count of lightweight plants, which indicates that they are in an early growing phase.
 
     2.2 Correlation Heatmap
+        Humidity and temperature sensors are redundant. They do not give us new information.
+        The total fresh weight correlates positively with the weight of the shoot. It also correlates positively with the 
+        age and the total leaves. This is logical and normal.
 
     2.3 Biomass vs Age
+        With continuing age the total biomass increases. This is a sign for growth.
+        It also looks like the biomass got measured once per week, because there aren't dots at every day.
 
     2.4 Image Pixel Analysis
+        The graph spikes at 90 on the pixel distribution scale. This is pretty dark. The model sees a lot of dirt, which is
+        darke than the green plants.
 
     2.5 Sample images
+        We can see that plants, which have bigger leafs also have a bigger mass. This confirmes our other observations.
 
 3. Data Quality Issues
 
     Missing Labels:
-    df.dropna() found empty rows, so we had to implement, that invalid labeled samples are removed automatically.
+    df.dropna() found empty rows, so we had to implement that invalid labeled samples are removed automatically.
 
     Target Scale:
     Initial loss was "NaN" due to high mean squared error values. Labels ware scaled from 0 to 1 by dividing each value by the highest value.
 
 4. Model Architecture
+
+    We implemented a ResNet-18 architecture, which is a deep residual network.
+    By using ResNet-18, we took advantage of the model pre-trained on the ImageNet dataset, which made it easier to detect visual parts of the plants (f.e. texture or edges). 
+    We modified it to predict the continuous weight value instead of 1000 classes (model.fc = nn.Linear(model.fc.in_features, 1)).
+    Therefore we shifted the task from classification to regression.
 
 5. Training Procedure
 
@@ -54,12 +69,22 @@ and automated logging.
     6.1 Training Curves
     The loss decreases over each epoch. The Validation Loss follows the Training Loss. The Model is not overfitting.
 
+    6.2 Metrics
+    Final_Train_Loss: 0.0044
+    Final_Val_Loss: 0.0072
+    Max_Weight_Scale: 2.113
+
+    Labels were scaled by the maximum weight found in the dataset.
+
 7. Challenges & Improvements
 
     7.1 Challenges
     Exploding Gradients: Initial training failed with "NaN" loss because the biomass weights were too large for an unscaled regression head.
 
     7.2 Improvements
+    We can implement RandomRotate90 and ColorJitter using Torchvision transforms. This forces the model to recognize plants from different angels and with different lighting conditions.
+
+    By using Vision Transformer (ViT) the model could learn that distant leaves are part of the same plant.
 
 9. Reproduction Instructions
 

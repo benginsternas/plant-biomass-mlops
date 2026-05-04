@@ -21,6 +21,8 @@ os.makedirs(FIGURES_DIR, exist_ok=True)
 # 3. DANN die Daten laden (mit dem richtigen Pfad-Objekt)
 df = pd.read_csv(CSV_PATH, decimal=',')
 
+df = df.dropna(subset=['fresh_weight_total'])
+
 # 1. Target distribution
 plt.figure(figsize=(8, 5))
 sns.histplot(df['fresh_weight_total'], kde=True)
@@ -68,7 +70,7 @@ sns.heatmap(
     annot_kws={"size": 8} # Kleinere Schrift für die Zahlen
 )
 
-plt.title('Relevante Merkmals-Korrelationen', fontsize=15)
+plt.title('correlation heatmap', fontsize=15)
 plt.xticks(rotation=45, ha='right') # Labels drehen, damit sie nicht überlappen
 plt.tight_layout()
 plt.savefig(os.path.join(FIGURES_DIR, 'correlation_heatmap.png'))
@@ -88,4 +90,4 @@ sns.histplot(brightness, color='gray')
 plt.title('Pixel Intensity Distribution (Sample)')
 plt.savefig('figures/image_pixel_analysis.png')
 
-print("EDA abgeschlossen. Plots in 'figures/' gespeichert.")
+print("EDA completed. Plots saved in 'figures/'.")
