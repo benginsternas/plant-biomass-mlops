@@ -117,5 +117,6 @@ git and automated logging.
 
     sample image: choose different type of samples to see a different situations
 
-    train_model.py: lower learn rate, to see the difference in the training_curve more detailed
-                    depending on the operating device, more epoches
+    train_model.py: lower learn rate, to see the difference in the training_curve more detailed. The problem is, the model is slower 
+                    at learning per epoch.
+                    Depending on the operating device, more epoches for better results. Results in longer training.
