@@ -120,3 +120,6 @@ git and automated logging.
     train_model.py: lower learn rate, to see the difference in the training_curve more detailed. The problem is, the model is slower 
                     at learning per epoch.
                     Depending on the operating device, more epoches for better results. Results in longer training.
+
+    Resnet18 or Resnet50: We thought about using ResNet50, but with these view samples, overfitting is a problem. This can be seen in the 
+                          validation loss graph. It jumps up and down, because it mistakes features on the samples, because it has too many layers.
