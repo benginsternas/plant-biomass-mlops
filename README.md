@@ -17,7 +17,7 @@ git and automated logging.
         By looking at the graph, we can see that the biomass labels are right-skewed.
         This means that we have a high count of lightweight plants, which indicates that they are in an early growing phase.
 
-    2.2 Correlation Heatmap
+    2.2 Correlation Heatmap (1 row)
         Humidity and temperature sensors are redundant. They do not give us new information.
         The total fresh weight correlates positively with the weight of the shoot. It also correlates positively with the 
         age and the total leaves. This is logical and normal.
@@ -56,7 +56,7 @@ git and automated logging.
 
     Loss Function: Mean Squared Error (MSE)
 
-    Learning Rate: 0.0001
+    Learning Rate: 0.0001 (smaller)
 
     Batch Size: 16
 
@@ -106,3 +106,16 @@ git and automated logging.
     4. Run the Model Training
 
         python train_model.py --epochs 3 --lr 0.0001
+
+10. Changes
+
+    README: added photos, automatic pdf
+
+    correlation heatmap: one axe to be fresh_weight only for a better overview
+
+    image pixel analysis: in color for better overview
+
+    sample image: choose different type of samples to see a different situations
+
+    train_model.py: lower learn rate, to see the difference in the training_curve more detailed
+                    depending on the operating device, more epoches

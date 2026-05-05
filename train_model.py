@@ -31,7 +31,7 @@ logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s -
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=3)
-    parser.add_argument('--lr', type=float, default=0.0001)
+    parser.add_argument('--lr', type=float, default=0.000001) #learning rate kleiner gemacht
     parser.add_argument('--batch_size', type=int, default=16)
     return parser.parse_args()
 
@@ -67,6 +67,7 @@ def main():
     # Train-Val Split
     train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
     
+    #Transform samples into fitting format for ResNet-18
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -93,14 +94,28 @@ def main():
     
     print(f"Training startet auf: {device}")
     for epoch in range(args.epochs):
+        # Schaltet das Modell in den Trainings-Modus (wichtig für Layer wie Dropout oder BatchNorm)
         model.train()
         train_loss = 0
+        
+        # Schleife über alle Daten-Pakete (Batches) im Trainings-Set
         for imgs, labels in train_loader:
+            # Daten auf die GPU (falls vorhanden) schieben und Label-Form anpassen (Spalte statt Zeile)
             imgs, labels = imgs.to(device), labels.to(device).unsqueeze(1)
+            
+            # 1. Alte Korrekturhinweise (Gradienten) löschen, damit wir frisch starten
             optimizer.zero_grad()
+            
+            # 2. Forward Pass: Das Modell rät das Gewicht; Criterion (MSE) berechnet den Fehler zum echten Label
             loss = criterion(model(imgs), labels)
+            
+            # 3. Backpropagation: Der Fehler wird rückwärts durch das Netz geleitet ("Wer war schuld?")
             loss.backward()
+            
+            # 4. Optimizer-Schritt: Die Gewichte werden minimal angepasst, um den Fehler zu verringern
             optimizer.step()
+            
+            # Fehlerwert des aktuellen Batches für die Statistik aufsummieren
             train_loss += loss.item()
         
         model.eval()
