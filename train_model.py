@@ -14,7 +14,10 @@ from sklearn.model_selection import train_test_split
 # Pfade absolut definieren
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMG_DIR = os.path.join(BASE_DIR, 'mlops_biomass_data', 'images_med_res')
-CSV_PATH = os.path.join(BASE_DIR, 'digital_biomass_labels.csv')
+CSV_CANDIDATES = [
+    os.path.join(BASE_DIR, 'digital_biomass_labels.csv'),
+    os.path.join(BASE_DIR, 'mlops_biomass_data', 'digital_biomass_labels.xlsx'),
+]
 RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 LOG_FILE = os.path.join(BASE_DIR, 'training.log')
 
@@ -57,7 +60,17 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # 1. Daten laden und vorverarbeiten
-    df = pd.read_csv(CSV_PATH, decimal=',')
+    data_path = next((p for p in CSV_CANDIDATES if os.path.exists(p)), None)
+    if data_path is None:
+        raise FileNotFoundError(
+            "Kein Label-File gefunden. Erwartet: digital_biomass_labels.csv oder "
+            "mlops_biomass_data/digital_biomass_labels.xlsx"
+        )
+
+    if data_path.endswith('.xlsx'):
+        df = pd.read_excel(data_path)
+    else:
+        df = pd.read_csv(data_path, decimal=',')
     df = df.dropna(subset=['fresh_weight_total']) 
     
     # Label-Scaling
