@@ -1,125 +1,95 @@
-Plant Biomass Prediciton - MLOps Praktikum 1 - Gruppe 2
+Plant Biomass Prediction - MLOps Praktikum 1 - Gruppe 2
 
-This project implements a machine learning pipeling for plant biomass using top-down images of plants. 
-The machine learning pipeline includes Exploratory Data Analysis, a model training workflow using PyTorch,
-git and automated logging.
+Overview
+This project implements an ML pipeline for plant biomass prediction from top-down plant images. It includes EDA, model training in PyTorch, and result logging.
 
-1. Dataset Description & Statistics
+Dataset
+- Samples: 4294 images
+- Target variable: fresh_weight_total
+- Features: temporal and sensor data
+- Images: mlops_biomass_data/images_med_res
 
-    Samples: 4294 images
-    Target Variable: fresh_weight_total
-    Features: Temporal data, sensor data
-    Input Data: colored images located in "mlops_biomass_data"/"images_med_res"
+Exploratory Data Analysis (EDA)
 
-2. Exploratory Data Analysis
+Target distribution
+Right-skewed target distribution with many lightweight plants.
+![Target distribution](figures/target_distribution.png)
 
-    2.1 Target Distribution
-        By looking at the graph, we can see that the biomass labels are right-skewed.
-        This means that we have a high count of lightweight plants, which indicates that they are in an early growing phase.
+Correlation heatmap
+Shows relationships between sensor signals and biomass targets.
+![Correlation heatmap](figures/correlation_heatmap.png)
 
-    2.2 Correlation Heatmap (1 row)
-        Humidity and temperature sensors are redundant. They do not give us new information.
-        The total fresh weight correlates positively with the weight of the shoot. It also correlates positively with the 
-        age and the total leaves. This is logical and normal.
+Biomass vs. age
+Biomass increases with plant age, with measurements spaced weekly.
+![Biomass vs. age](figures/age_vs_biomass.png)
 
-    2.3 Biomass vs Age
-        With continuing age the total biomass increases. This is a sign for growth.
-        It also looks like the biomass got measured once per week, because there aren't dots at every day.
+Image pixel analysis
+Pixel intensity peaks in darker ranges, indicating soil/background dominance.
+![Image pixel analysis](figures/image_pixel_analysis.png)
 
-    2.4 Image Pixel Analysis
-        The graph spikes at 90 on the pixel distribution scale. This is pretty dark. The model sees a lot of dirt, which is
-        darke than the green plants.
+Sample images
+Visual comparison of plant size and expected biomass.
+![Sample images](figures/sample_images.png)
 
-    2.5 Sample images
-        We can see that plants, which have bigger leafs also have a bigger mass. This confirmes our other observations.
+Data quality
+- Missing labels are removed with dropna.
+- Targets are scaled to [0, 1] to stabilize MSE training.
 
-3. Data Quality Issues
+Model
+- ResNet-18 (ImageNet pre-trained), regression head with 1 output.
 
-    Missing Labels:
-    df.dropna() found empty rows, so we had to implement that invalid labeled samples are removed automatically.
+Training
+- Optimizer: Adam
+- Loss: MSE
+- Learning rate: 0.0001
+- Batch size: 16
+- Epochs: 3
+- Split: 80/20 (Seed 42)
 
-    Target Scale:
-    Initial loss was "NaN" due to high mean squared error values. Labels ware scaled from 0 to 1 by dividing each value by the highest value.
+Technologies
+- Python
+- PyTorch
+- Torchvision
+- Scikit-learn
+- Pandas
+- Matplotlib
+- Seaborn
+- Pillow
+- Git
 
-4. Model Architecture
+Architecture Diagram
 
-    We implemented a ResNet-18 architecture, which is a deep residual network.
-    By using ResNet-18, we took advantage of the model pre-trained on the ImageNet dataset, which made it easier to detect visual parts of the plants (f.e. texture or edges). 
-    We modified it to predict the continuous weight value instead of 1000 classes (model.fc = nn.Linear(model.fc.in_features, 1)).
-    Therefore we shifted the task from classification to regression.
+```mermaid
+graph TD
+    A[Input Images] --> B[Preprocessing and Transforms]
+    B --> C[ResNet-18 Backbone]
+    C --> D[Global Average Pooling]
+    D --> E[Regression Head<br/>Linear Output: 1]
+    E --> F[Scaled Biomass Prediction]
 
-5. Training Procedure
+    F --> G[Loss: MSE]
+    G --> H[Optimizer: Adam]
+    H --> C
+```
 
-    The training was conducted on a CPU/GPU-agnostic pipeline with the following settings:
+Results
+- Final_Train_Loss: 0.0044
+- Final_Val_Loss: 0.0072
+- Max_Weight_Scale: 2.113
 
-    Optimizer: Adam
+Reproduction
+1. Clone the repo
+   - git clone https://gitlab.nt.fh-koeln.de/gitlab/mlops/praktikum/mlops_2/MLOps_P1_2.git
+   - cd MLOps_P1_2
+2. Setup environment
+   - python -m venv .venv
+   - source .venv/bin/activate
+   - pip install -r requirements.txt
+3. Run EDA
+   - python eda.py
+4. Run training
+   - python train_model.py --epochs 3 --lr 0.0001
 
-    Loss Function: Mean Squared Error (MSE)
-
-    Learning Rate: 0.0001 (smaller)
-
-    Batch Size: 16
-
-    Epochs: 3
-
-    Data Split: 80% Training / 20% Validation (Seed: 42).
-
-6. Results
-
-    6.1 Training Curves
-    The loss decreases over each epoch. The Validation Loss follows the Training Loss. The Model is not overfitting.
-
-    6.2 Metrics
-    Final_Train_Loss: 0.0044
-    Final_Val_Loss: 0.0072
-    Max_Weight_Scale: 2.113
-
-    Labels were scaled by the maximum weight found in the dataset.
-
-7. Challenges & Improvements
-
-    7.1 Challenges
-    Exploding Gradients: Initial training failed with "NaN" loss because the biomass weights were too large for an unscaled regression head.
-
-    7.2 Improvements
-    We can implement RandomRotate90 and ColorJitter using Torchvision transforms. This forces the model to recognize plants from different angels and with different lighting conditions.
-
-    By using Vision Transformer (ViT) the model could learn that distant leaves are part of the same plant.
-
-9. Reproduction Instructions
-
-    1. Clone the Repository
-
-        git clone https://gitlab.nt.fh-koeln.de/gitlab/mlops/praktikum/mlops_2/MLOps_P1_2.git
-        cd MLOps_P1_2
-
-    2. Setup Environment
-
-        python -m venv .venv
-        source .venv/bin/activate  
-        pip install -r requirements.txt
-
-    3. Run the EDA
-
-        python eda.py
-
-    4. Run the Model Training
-
-        python train_model.py --epochs 3 --lr 0.0001
-
-10. Changes
-
-    README: added photos, automatic pdf
-
-    correlation heatmap: one axe to be fresh_weight only for a better overview
-
-    image pixel analysis: in color for better overview
-
-    sample image: choose different type of samples to see a different situations
-
-    train_model.py: lower learn rate, to see the difference in the training_curve more detailed. The problem is, the model is slower 
-                    at learning per epoch.
-                    Depending on the operating device, more epoches for better results. Results in longer training.
-
-    Resnet18 or Resnet50: We thought about using ResNet50, but with these view samples, overfitting is a problem. This can be seen in the 
-                          validation loss graph. It jumps up and down, because it mistakes features on the samples, because it has too many layers.
+Developers
+- Bengin Sternas
+- Joshua Sauter
