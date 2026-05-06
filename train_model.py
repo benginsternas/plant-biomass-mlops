@@ -54,10 +54,17 @@ class PlantDataset(Dataset):
         if self.transform: img = self.transform(img)
         return img, label
 
+def select_device():
+    if torch.backends.mps.is_available():
+        return torch.device('mps')
+    if torch.cuda.is_available():
+        return torch.device('cuda')
+    return torch.device('cpu')
+
 def main():
     args = get_args()
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = select_device()
     
     # 1. Daten laden und vorverarbeiten
     data_path = next((p for p in CSV_CANDIDATES if os.path.exists(p)), None)
