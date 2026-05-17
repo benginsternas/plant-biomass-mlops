@@ -1,122 +1,90 @@
-Plant Biomass Prediction - MLOps Praktikum 1 - Gruppe 2
+# MLOps Lab Block 2: ML Pipeline Automation with Dagster
+## Plant Biomass Prediction - Group 2
 
-Overview
-This project implements an ML pipeline for plant biomass prediction from top-down plant images. It includes EDA, model training in PyTorch, and result logging.
+## Overview
+This project implements an automated ML pipeline for plant biomass prediction from top-down plant images. Building upon the manual PyTorch workflow from Praktikum 1, this version introduces **Dagster** for pipeline orchestration and **MLflow** for experiment tracking.
 
-Dataset
-- Samples: 4294 images
-- Target variable: fresh_weight_total
-- Metadata file: digital_biomass_labels.csv (contains sensor/temporal fields and labels)
-- Features available: temporal and sensor data (not used for training; images only)
-- Images: mlops_biomass_data/images_med_res
+## 1. Pipeline Architecture
+The workflow is divided into four main Dagster assets to ensure a reproducible and modular pipeline:
 
-Exploratory Data Analysis (EDA)
+1. **`raw_dataset`**: Loads image paths and tabular metadata (`digital_biomass_labels.csv`/`.xlsx`) from disk and drops entries with missing labels.
+2. **`preprocessed_data`**: Scales the targets to a range of [0, 1], creates an 80/20 train/validation split, applies ResNet-18 specific transformations, and builds PyTorch `DataLoader` objects.
+3. **`trained_model`**: Trains a ResNet-18 regression model on the data. It utilizes **MLflow** to automatically track hyperparameters, log metrics per epoch, and save the trained model artifact.
+4. **`model_evaluation`**: Consumes the loss histories from the training asset to generate and save training curves.
 
-Target distribution
-Right-skewed target distribution with many lightweight plants.
-![Target distribution](figures/target_distribution.png)
-Explanation: The distribution indicates many early-growth plants and fewer heavy samples.
-
-Correlation heatmap
-Shows relationships between sensor signals and biomass targets.
-![Correlation heatmap](figures/correlation_heatmap.png)
-Explanation: Strong correlations highlight which metadata aligns with fresh_weight_total.
-
-Biomass vs. age
-Biomass increases with plant age, with measurements spaced weekly.
-![Biomass vs. age](figures/age_vs_biomass.png)
-Explanation: The upward trend reflects growth over time.
-
-Image pixel analysis
-Pixel intensity peaks in darker ranges, indicating soil/background dominance.
-![Image pixel analysis](figures/image_pixel_analysis.png)
-Explanation: Darker pixels suggest background/soil occupies large image areas.
-
-Sample images
-Visual comparison of plant size and expected biomass.
-![Sample images](figures/sample_images.png)
-Explanation: Larger leaf area visually matches higher biomass values.
-
-Data quality
-Issues identified (with examples)
-- Missing labels in fresh_weight_total are removed with dropna to avoid invalid samples (rows with empty labels).
-- Target scale caused unstable loss (NaN) in early runs. Targets are scaled to [0, 1] by dividing by the max value.
-
-Model
-- ResNet-18 (ImageNet pre-trained), regression head with 1 output.
-
-Training
-- Optimizer: Adam
-- Loss: MSE
-- Learning rate: 0.0001
-- Batch size: 16
-- Epochs: 3
-- Split: 80/20 (Seed 42)
-
-Technologies
-- Python
-- PyTorch
-- Torchvision
-- Scikit-learn
-- Pandas
-- Matplotlib
-- Seaborn
-- Pillow
-- Git
-
-Architecture Diagram
-
+### Architecture Diagram
 ```mermaid
 graph TD
-    A[Input Images] --> B[Preprocessing and Transforms]
-    B --> C[ResNet-18 Backbone]
-    C --> D[Global Average Pooling]
-    D --> E[Regression Head<br/>Linear Output: 1]
-    E --> F[Scaled Biomass Prediction]
-
-    F --> G[Loss: MSE]
-    G --> H[Optimizer: Adam]
-    H --> C
+    A[raw_dataset<br/>Load Metadata & Paths] --> B[preprocessed_data<br/>Scale, Split & DataLoaders]
+    B --> C[trained_model<br/>ResNet-18 Training]
+    C --> D[model_evaluation<br/>Plot Loss Curves]
+    
+    C -.-> |Logs Params, Metrics & Artifacts| E[(MLflow Tracking SQLite)]
 ```
 
-Results
-- Final_Train_Loss: 0.0044
-- Final_Val_Loss (MSE validation metric): 0.0072
-- Max_Weight_Scale: 2.113
+## 2. Dataset & Data Quality Context
+- **Samples:** 4294 images
+- **Target variable:** `fresh_weight_total`
+- **Images:** `mlops_biomass_data/images_med_res`
 
-Training curves
-![Training curves](results/training_curves.png)
-Explanation: Train and validation loss decrease across epochs without divergence.
+**Key Findings:**
+- **Target distribution:** Right-skewed with many lightweight (early-growth) plants.
+- **Biomass vs. age:** Biomass increases with plant age (weekly measurements).
+- **Data Quality:** Missing labels in `fresh_weight_total` are removed dynamically. Targets are scaled to [0, 1] by dividing by the max value to prevent unstable loss (NaN).
 
-Challenges
-- NaN loss during early runs due to unscaled target values.
-- Limited sample size increases overfitting risk for deeper models.
+## 3. Technologies
+- **Orchestration & Tracking:** Dagster, MLflow, dagster-mlflow
+- **Machine Learning:** PyTorch, Torchvision, Scikit-learn
+- **Data Handling & Viz:** Pandas, Matplotlib, Seaborn, Pillow
 
-Potential improvements
-- Add augmentation (RandomRotate90, ColorJitter) to improve robustness.
-- Evaluate ViT-based backbones for long-range leaf context.
+## 4. Results & Tracking
+The pipeline successfully tracks all experiments via the integrated MLflow resource.
 
-Changes
-- README: added figures and PDF export.
-- Correlation heatmap: focused on fresh_weight_total for a clearer overview.
-- Image pixel analysis: switched to RGB distribution for better interpretability.
-- Sample images: selected diverse samples to show different growth stages.
-- Training: reduced learning rate to make loss curves more detailed (slower convergence).
-- Model choice: ResNet-18 preferred over ResNet-50 to reduce overfitting on limited samples.
+- **Tracked Parameters:** `epochs` (3), `learning_rate` (0.0001), `batch_size` (16)
+- **Tracked Metrics:** `train_loss`, `val_loss` (logged at each epoch)
+- **Model Artifact:** The PyTorch ResNet-18 model weights are saved directly into the MLflow SQLite database (`mlflow.db`).
 
-Reproduction
-1. Clone the repo
-   - git clone https://gitlab.nt.fh-koeln.de/gitlab/mlops/praktikum/mlops_2/MLOps_P1_2.git
-   - cd MLOps_P1_2
-2. Setup environment
-   - python -m venv .venv
-   - source .venv/bin/activate
-   - pip install -r requirements.txt
-3. Run EDA
-   - python eda.py
-4. Run training
-   - python train_model.py --epochs 3 --lr 0.0001
+### Dagster Orchestration (Successful Run)
+![Dagster Run](screenshots/dagster_successful_run.png)
 
-Developers
+### MLflow Experiment Tracking
+![MLflow Run](screenshots/mlflow_experiments.png)
+
+### Training Curves
+![Training curves](dagster_training_curves.png)
+*Explanation: Train and validation loss decrease across epochs without divergence. Orchestrated by Dagster's `model_evaluation` asset.*
+
+## 5. Setup Instructions
+To set up the environment, Python 3 and a virtual environment are recommended.
+
+```bash
+# Clone the repository
+git clone https://gitlab.nt.fh-koeln.de/gitlab/mlops/praktikum/mlops_2/MLOps_P2_2.git
+cd MLOps_P2_2
+
+# Create and activate a virtual environment
+python3 -m venv .venv      # Windows: python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# Install all required packages
+pip3 install -r requirements.txt # Windows: pip install -r requirements.txt
+```
+
+## 6. Running the Pipeline
+To execute the pipeline and view the experiments, use two terminal windows.
+
+**Terminal 1: Start Dagster UI**
+```bash
+dagster dev -f dagster_pipeline.py
+```
+Open `http://localhost:3000` in your browser. Navigate to the "Lineage" tab and click "Materialize all" to run the complete pipeline.
+
+**Terminal 2: Start MLflow UI**
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
+Open `http://localhost:5000` in your browser to view the logged experiments, parameters, metrics, and saved models.
+
+## Developers
 - Bengin Sternas
 - Joshua Sauter
