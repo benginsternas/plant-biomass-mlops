@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+venv/
+env/
+.env/
+
+# IDEs und OS
+.vscode/
+.idea/
+.DS_Store
+
+# Data
+mlops_biomass_data/
+*.zip
+*.tar.gz
+
+# MLflow
+mlruns/
+mlflow.db
+*.db
+
+# Dagster
+*.yaml
