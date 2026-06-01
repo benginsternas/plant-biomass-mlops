@@ -168,12 +168,57 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict) -> di
 
 
 @asset
-def model_evaluation(context: AssetExecutionContext, trained_model: dict) -> None:
-    """Evaluate model on validation set and create plots"""
+def model_evaluation(
+    context: AssetExecutionContext,
+    trained_model: dict,
+    preprocessed_data: dict,
+) -> dict:
+    """Evaluate model on validation set, log final metrics and create plots"""
+    model = trained_model["model"]
     train_losses = trained_model["train_losses"]
     val_losses = trained_model["val_losses"]
-    
-    # Generate a plot like in Lab 1
+    val_loader = preprocessed_data["val_loader"]
+    max_weight_val = preprocessed_data["max_weight_val"]
+ 
+    device = select_device()
+    model = model.to(device)
+    model.eval()
+ 
+    # Final evaluation on validation set (in original units = grams)
+    criterion = nn.MSELoss()
+    total_loss_scaled = 0.0
+    total_loss_grams = 0.0
+    n_batches = 0
+ 
+    with torch.no_grad():
+        for imgs, labels in val_loader:
+            imgs, labels = imgs.to(device), labels.to(device).unsqueeze(1)
+            preds = model(imgs)
+            # Loss in scaled units [0, 1]
+            total_loss_scaled += criterion(preds, labels).item()
+            # Loss in original units (grams) for interpretability
+            preds_g = preds * max_weight_val
+            labels_g = labels * max_weight_val
+            total_loss_grams += criterion(preds_g, labels_g).item()
+            n_batches += 1
+ 
+    final_val_mse_scaled = total_loss_scaled / n_batches
+    final_val_mse_grams = total_loss_grams / n_batches
+    final_val_rmse_grams = final_val_mse_grams ** 0.5
+ 
+    context.log.info(
+        f"Final Val MSE (scaled): {final_val_mse_scaled:.4f} | "
+        f"Final Val MSE (grams): {final_val_mse_grams:.4f} | "
+        f"Final Val RMSE (grams): {final_val_rmse_grams:.4f}"
+    )
+ 
+    # Log final metrics into the same MLflow experiment (new run for evaluation)
+    with mlflow.start_run(run_name="resnet18_biomass_evaluation", nested=False):
+        mlflow.log_metric("final_val_mse_scaled", final_val_mse_scaled)
+        mlflow.log_metric("final_val_mse_grams", final_val_mse_grams)
+        mlflow.log_metric("final_val_rmse_grams", final_val_rmse_grams)
+ 
+    # Generate the training-curves plot
     plt.figure(figsize=(10, 6))
     plt.plot(range(1, EPOCHS + 1), train_losses, label='Train Loss', marker='o')
     plt.plot(range(1, EPOCHS + 1), val_losses, label='Val Loss', marker='o')
@@ -182,11 +227,19 @@ def model_evaluation(context: AssetExecutionContext, trained_model: dict) -> Non
     plt.title('Training and Validation Loss Over Time')
     plt.legend()
     plt.grid(True)
-
-    # Save directly to the base directory
+ 
     plot_path = os.path.join(BASE_DIR, 'dagster_training_curves.png')
     plt.savefig(plot_path)
+    plt.close()
     context.log.info(f"Training curves saved to: {plot_path}")
+ 
+    return {
+        "final_val_mse_scaled": final_val_mse_scaled,
+        "final_val_mse_grams": final_val_mse_grams,
+        "final_val_rmse_grams": final_val_rmse_grams,
+        "plot_path": plot_path,
+    }
+
 
 
 # ==========================================
