@@ -110,7 +110,7 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict) -> di
     val_loader = preprocessed_data["val_loader"]
     device = select_device()
     context.log.info(f"Starting training on device: {device}")
-
+ 
     # Initialize model
     model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     model.fc = nn.Linear(model.fc.in_features, 1)
@@ -118,16 +118,18 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict) -> di
     
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.MSELoss()
-
+ 
     train_losses = []
     val_losses = []
-
+ 
     # Start MLflow run
     with mlflow.start_run(run_name="resnet18_biomass_training"):
         # Log at least 3 parameters (requirement met)
         mlflow.log_param("epochs", EPOCHS)
         mlflow.log_param("learning_rate", LEARNING_RATE)
         mlflow.log_param("batch_size", BATCH_SIZE)
+        mlflow.log_param("model_architecture", "resnet18")
+        mlflow.log_param("optimizer", "Adam")
         
         for epoch in range(EPOCHS):
             model.train()
@@ -158,13 +160,14 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict) -> di
             # Log metrics per epoch for the MLflow UI
             mlflow.log_metric("train_loss", avg_train, step=epoch)
             mlflow.log_metric("val_loss", avg_val, step=epoch)
-
+ 
         # Save model as artifact (requirement met)
         mlflow.pytorch.log_model(model, "model")
         context.log.info("Model successfully saved to MLflow.")
-
+ 
     # Pass the trained model and loss history to the next asset
     return {"model": model, "train_losses": train_losses, "val_losses": val_losses}
+
 
 
 @asset
