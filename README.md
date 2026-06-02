@@ -85,6 +85,20 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
 Open `http://localhost:5000` in your browser to view the logged experiments, parameters, metrics, and saved models.
 
+## 7. Changes
+
+Fix:
+
+Fixed the Dagster pipeline runs not showing up on MLFlow
+
+
+Improvements:
+
+Configs added for different assets.
+Plot added to Dagster
+
+
+
 ## Developers
 - Bengin Sternas
 - Joshua Sauter

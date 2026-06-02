@@ -120,7 +120,7 @@ def preprocessed_data(context: AssetExecutionContext, raw_dataset: dict, config:
     return {"train_loader": train_loader, "val_loader": val_loader, "max_weight_val": max_val}
 
 
-@asset
+@asset(required_resource_keys={"mlflow"})
 def trained_model(context: AssetExecutionContext, preprocessed_data: dict, config: TrainingConfig) -> dict:
     """Train the ResNet model with MLflow tracking"""
     train_loader = preprocessed_data["train_loader"]
@@ -221,7 +221,7 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict, confi
 
 
 
-@asset
+@asset(required_resource_keys={"mlflow"})
 def model_evaluation(
     context: AssetExecutionContext,
     trained_model: dict,
