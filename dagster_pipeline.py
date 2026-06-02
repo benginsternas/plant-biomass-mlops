@@ -20,9 +20,10 @@ class PreprocessConfig(Config):
     test_size: float = 0.2
     random_state: int = 42
     image_size: int = 224
+    batch_size: int = 16
 
 class TrainingConfig(Config):
-    epochs: int = 3
+    epochs: int = 1
     learning_rate: float = 0.0001
     batch_size: int = 16
 
@@ -35,6 +36,17 @@ CSV_CANDIDATES = [
     os.path.join(BASE_DIR, 'digital_biomass_labels.csv'),
     os.path.join(BASE_DIR, 'mlops_biomass_data', 'digital_biomass_labels.xlsx'),
 ]
+
+_MLFLOW_DB_URI = f"sqlite:///{os.path.join(BASE_DIR, 'mlflow.db')}"
+
+# Restore deleted experiment so dagster_mlflow resource can activate it
+def _restore_deleted_experiment(name: str) -> None:
+    client = mlflow.tracking.MlflowClient(_MLFLOW_DB_URI)
+    exp = client.get_experiment_by_name(name)
+    if exp is not None and exp.lifecycle_stage == "deleted":
+        client.restore_experiment(exp.experiment_id)
+
+_restore_deleted_experiment("plant_biomass_pipeline")
 
 def plot_to_markdown(fig) -> str:
     """Konvertiert eine matplotlib Figure in einen Markdown-Bild-String."""
@@ -113,10 +125,10 @@ def preprocessed_data(context: AssetExecutionContext, raw_dataset: dict, config:
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     
-    train_loader = DataLoader(PlantDataset(train_df, img_dir, transform), batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(PlantDataset(val_df, img_dir, transform), batch_size=BATCH_SIZE)
-    
-    context.log.info(f"DataLoaders created. Batch Size: {BATCH_SIZE}")
+    train_loader = DataLoader(PlantDataset(train_df, img_dir, transform), batch_size=config.batch_size, shuffle=True)
+    val_loader = DataLoader(PlantDataset(val_df, img_dir, transform), batch_size=config.batch_size)
+
+    context.log.info(f"DataLoaders created. Batch Size: {config.batch_size}")
     return {"train_loader": train_loader, "val_loader": val_loader, "max_weight_val": max_val}
 
 
@@ -133,64 +145,51 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict, confi
     model.fc = nn.Linear(model.fc.in_features, 1)
     model = model.to(device)
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     criterion = nn.MSELoss()
- 
+
     train_losses = []
     val_losses = []
- 
-    # Start MLflow run
-    with mlflow.start_run(run_name="resnet18_biomass_training"):
-        # Log at least 3 parameters (requirement met)
-        mlflow.log_param("epochs", EPOCHS)
-        mlflow.log_param("learning_rate", LEARNING_RATE)
-        mlflow.log_param("batch_size", BATCH_SIZE)
-        mlflow.log_param("model_architecture", "resnet18")
-        mlflow.log_param("optimizer", "Adam")
-        
-        for epoch in range(EPOCHS):
-            model.train()
-            train_loss = 0
-            for imgs, labels in train_loader:
+
+    # dagster_mlflow resource already started a run — log directly into it
+    mlflow.log_param("epochs", config.epochs)
+    mlflow.log_param("learning_rate", config.learning_rate)
+    mlflow.log_param("batch_size", config.batch_size)
+    mlflow.log_param("model_architecture", "resnet18")
+    mlflow.log_param("optimizer", "Adam")
+
+    for epoch in range(config.epochs):
+        model.train()
+        train_loss = 0
+        for imgs, labels in train_loader:
+            imgs, labels = imgs.to(device), labels.to(device).unsqueeze(1)
+            optimizer.zero_grad()
+            loss = criterion(model(imgs), labels)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
+
+        model.eval()
+        val_loss = 0
+        with torch.no_grad():
+            for imgs, labels in val_loader:
                 imgs, labels = imgs.to(device), labels.to(device).unsqueeze(1)
-                optimizer.zero_grad()
                 loss = criterion(model(imgs), labels)
-                loss.backward()
-                optimizer.step()
-                train_loss += loss.item()
-            
-            model.eval()
-            val_loss = 0
-            with torch.no_grad():
-                for imgs, labels in val_loader:
-                    imgs, labels = imgs.to(device), labels.to(device).unsqueeze(1)
-                    loss = criterion(model(imgs), labels)
-                    val_loss += loss.item()
-            
-            avg_train = train_loss / len(train_loader)
-            avg_val = val_loss / len(val_loader)
-            train_losses.append(avg_train)
-            val_losses.append(avg_val)
-            
-            context.log.info(f"Epoch {epoch+1}: Train Loss {avg_train:.4f} | Val Loss {avg_val:.4f}")
-            
-            # Log metrics per epoch for the MLflow UI
-            mlflow.log_metric("train_loss", avg_train, step=epoch)
-            mlflow.log_metric("val_loss", avg_val, step=epoch)
- 
-        # Save model as artifact (requirement met)
-        mlflow.pytorch.log_model(model, "model")
-        context.log.info("Model successfully saved to MLflow.")
-        
-    context.add_output_metadata({
-    "final_train_loss": MetadataValue.float(train_losses[-1]),
-    "final_val_loss": MetadataValue.float(val_losses[-1]),
-    "epochs_trained": MetadataValue.int(len(train_losses)),
-    "device": MetadataValue.text(str(device)),
-    "model_architecture": MetadataValue.text("ResNet-18"),
-    })
-    
-    # Plot wie bisher erstellen
+                val_loss += loss.item()
+
+        avg_train = train_loss / len(train_loader)
+        avg_val = val_loss / len(val_loader)
+        train_losses.append(avg_train)
+        val_losses.append(avg_val)
+
+        context.log.info(f"Epoch {epoch+1}: Train Loss {avg_train:.4f} | Val Loss {avg_val:.4f}")
+
+        mlflow.log_metric("train_loss", avg_train, step=epoch)
+        mlflow.log_metric("val_loss", avg_val, step=epoch)
+
+    mlflow.pytorch.log_model(model, "model")
+    context.log.info("Model successfully saved to MLflow.")
+
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss', marker='o')
     ax.plot(range(1, len(val_losses) + 1), val_losses, label='Val Loss', marker='o')
@@ -200,23 +199,23 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict, confi
     ax.legend()
     ax.grid(True)
 
-    # Plot in Datei UND als Markdown
+    mlflow.log_figure(fig, "training_curves.png")
     plot_path = os.path.join(BASE_DIR, 'dagster_training_curves.png')
     fig.savefig(plot_path)
     plot_md = plot_to_markdown(fig)
     plt.close(fig)
 
-# Metadata anhängen
     context.add_output_metadata({
-    "final_val_mse_scaled": MetadataValue.float(final_val_mse_scaled),
-    "final_val_mse_grams": MetadataValue.float(final_val_mse_grams),
-    "final_val_rmse_grams": MetadataValue.float(final_val_rmse_grams),
-    "training_curves": MetadataValue.md(plot_md),     # ← Plot direkt im UI!
-    "plot_file": MetadataValue.path(plot_path),
-    "mlflow_ui": MetadataValue.url("http://localhost:5000"),
+        "final_train_loss": MetadataValue.float(train_losses[-1]),
+        "final_val_loss": MetadataValue.float(val_losses[-1]),
+        "epochs_trained": MetadataValue.int(len(train_losses)),
+        "device": MetadataValue.text(str(device)),
+        "model_architecture": MetadataValue.text("ResNet-18"),
+        "training_curves": MetadataValue.md(plot_md),
+        "plot_file": MetadataValue.path(plot_path),
+        "mlflow_ui": MetadataValue.url("http://localhost:5000"),
     })
- 
-    # Pass the trained model and loss history to the next asset
+
     return {"model": model, "train_losses": train_losses, "val_losses": val_losses}
 
 
@@ -267,16 +266,15 @@ def model_evaluation(
         f"Final Val RMSE (grams): {final_val_rmse_grams:.4f}"
     )
  
-    # Log final metrics into the same MLflow experiment (new run for evaluation)
-    with mlflow.start_run(run_name="resnet18_biomass_evaluation", nested=False):
-        mlflow.log_metric("final_val_mse_scaled", final_val_mse_scaled)
-        mlflow.log_metric("final_val_mse_grams", final_val_mse_grams)
-        mlflow.log_metric("final_val_rmse_grams", final_val_rmse_grams)
+    # dagster_mlflow resource already started a run — log directly into it
+    mlflow.log_metric("final_val_mse_scaled", final_val_mse_scaled)
+    mlflow.log_metric("final_val_mse_grams", final_val_mse_grams)
+    mlflow.log_metric("final_val_rmse_grams", final_val_rmse_grams)
  
     # Generate the training-curves plot
     plt.figure(figsize=(10, 6))
-    plt.plot(range(1, EPOCHS + 1), train_losses, label='Train Loss', marker='o')
-    plt.plot(range(1, EPOCHS + 1), val_losses, label='Val Loss', marker='o')
+    plt.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss', marker='o')
+    plt.plot(range(1, len(val_losses) + 1), val_losses, label='Val Loss', marker='o')
     plt.xlabel('Epoch')
     plt.ylabel('MSE Loss')
     plt.title('Training and Validation Loss Over Time')
@@ -306,7 +304,7 @@ defs = Definitions(
     resources={
         "mlflow": mlflow_tracking.configured({
             "experiment_name": "plant_biomass_pipeline",
-            "mlflow_tracking_uri": "sqlite:///mlflow.db"
+            "mlflow_tracking_uri": f"sqlite:///{os.path.join(BASE_DIR, 'mlflow.db')}"
         })
     }
 )

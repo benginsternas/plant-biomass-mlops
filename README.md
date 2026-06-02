@@ -95,7 +95,6 @@ Fixed the Dagster pipeline runs not showing up on MLFlow
 Improvements:
 
 Configs added for different assets.
-Plot added to Dagster
 
 
 
