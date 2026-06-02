@@ -23,7 +23,7 @@ class PreprocessConfig(Config):
     batch_size: int = 16
 
 class TrainingConfig(Config):
-    epochs: int = 1
+    epochs: int = 3
     learning_rate: float = 0.0001
     batch_size: int = 16
 
