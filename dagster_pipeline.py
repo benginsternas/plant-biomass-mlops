@@ -11,6 +11,17 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import models, transforms
 from sklearn.model_selection import train_test_split
 from PIL import Image
+from dagster import Config
+
+class PreprocessConfig(Config):
+    test_size: float = 0.2
+    random_state: int = 42
+    image_size: int = 224
+
+class TrainingConfig(Config):
+    epochs: int = 3
+    learning_rate: float = 0.0001
+    batch_size: int = 16
 
 # ==========================================
 # CONFIGURATION & HELPER FUNCTIONS
@@ -22,10 +33,6 @@ CSV_CANDIDATES = [
     os.path.join(BASE_DIR, 'mlops_biomass_data', 'digital_biomass_labels.xlsx'),
 ]
 
-# Define hyperparameters centrally
-EPOCHS = 3
-LEARNING_RATE = 0.0001
-BATCH_SIZE = 16
 
 class PlantDataset(Dataset):
     def __init__(self, df, img_dir, transform=None):
@@ -55,7 +62,7 @@ def select_device():
 # ==========================================
 
 @asset
-def raw_dataset(context: AssetExecutionContext) -> dict:
+def raw_dataset(context: AssetExecutionContext, config: TrainingConfig) -> dict:
     """Load plant images and metadata from disk"""
     context.log.info("Searching for label file...")
     
@@ -80,7 +87,7 @@ def raw_dataset(context: AssetExecutionContext) -> dict:
 
 
 @asset
-def preprocessed_data(context: AssetExecutionContext, raw_dataset: dict) -> dict:
+def preprocessed_data(context: AssetExecutionContext, raw_dataset: dict, config: PreprocessConfig) -> dict:
     """Preprocess images (resize, normalize) and create train/val split"""
     df = raw_dataset["metadata"]
     img_dir = raw_dataset["image_dir"]
@@ -104,7 +111,7 @@ def preprocessed_data(context: AssetExecutionContext, raw_dataset: dict) -> dict
 
 
 @asset
-def trained_model(context: AssetExecutionContext, preprocessed_data: dict) -> dict:
+def trained_model(context: AssetExecutionContext, preprocessed_data: dict, config: TrainingConfig) -> dict:
     """Train the ResNet model with MLflow tracking"""
     train_loader = preprocessed_data["train_loader"]
     val_loader = preprocessed_data["val_loader"]
@@ -174,6 +181,7 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict) -> di
 def model_evaluation(
     context: AssetExecutionContext,
     trained_model: dict,
+    config: TrainingConfig,
     preprocessed_data: dict,
 ) -> dict:
     """Evaluate model on validation set, log final metrics and create plots"""
