@@ -5,6 +5,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import mlflow
 import mlflow.pytorch
+import base64
+from io import BytesIO
+from dagster import MetadataValue
 from dagster import asset, AssetExecutionContext, Definitions
 from dagster_mlflow import mlflow_tracking
 from torch.utils.data import Dataset, DataLoader
@@ -33,6 +36,13 @@ CSV_CANDIDATES = [
     os.path.join(BASE_DIR, 'mlops_biomass_data', 'digital_biomass_labels.xlsx'),
 ]
 
+def plot_to_markdown(fig) -> str:
+    """Konvertiert eine matplotlib Figure in einen Markdown-Bild-String."""
+    buf = BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+    image_b64 = base64.b64encode(buf.read()).decode()
+    return f"![plot](data:image/png;base64,{image_b64})"
 
 class PlantDataset(Dataset):
     def __init__(self, df, img_dir, transform=None):
@@ -171,6 +181,40 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict, confi
         # Save model as artifact (requirement met)
         mlflow.pytorch.log_model(model, "model")
         context.log.info("Model successfully saved to MLflow.")
+        
+    context.add_output_metadata({
+    "final_train_loss": MetadataValue.float(train_losses[-1]),
+    "final_val_loss": MetadataValue.float(val_losses[-1]),
+    "epochs_trained": MetadataValue.int(len(train_losses)),
+    "device": MetadataValue.text(str(device)),
+    "model_architecture": MetadataValue.text("ResNet-18"),
+    })
+    
+    # Plot wie bisher erstellen
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss', marker='o')
+    ax.plot(range(1, len(val_losses) + 1), val_losses, label='Val Loss', marker='o')
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('MSE Loss')
+    ax.set_title('Training and Validation Loss Over Time')
+    ax.legend()
+    ax.grid(True)
+
+    # Plot in Datei UND als Markdown
+    plot_path = os.path.join(BASE_DIR, 'dagster_training_curves.png')
+    fig.savefig(plot_path)
+    plot_md = plot_to_markdown(fig)
+    plt.close(fig)
+
+# Metadata anhängen
+    context.add_output_metadata({
+    "final_val_mse_scaled": MetadataValue.float(final_val_mse_scaled),
+    "final_val_mse_grams": MetadataValue.float(final_val_mse_grams),
+    "final_val_rmse_grams": MetadataValue.float(final_val_rmse_grams),
+    "training_curves": MetadataValue.md(plot_md),     # ← Plot direkt im UI!
+    "plot_file": MetadataValue.path(plot_path),
+    "mlflow_ui": MetadataValue.url("http://localhost:5000"),
+    })
  
     # Pass the trained model and loss history to the next asset
     return {"model": model, "train_losses": train_losses, "val_losses": val_losses}
