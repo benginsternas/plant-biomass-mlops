@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# MLflow
+mlflow.db
+mlruns/
+
+# Dagster
+.tmp_dagster_home*/
+
+# Training outputsQ
+dagster_training_curves.png
+
+# Production data (logged images & inference logs)
+production_data/
+
+# Dataset & large files
+mlops_biomass_data/
+digital_biomass_labels.csv
+
+# Environment
+.env
