@@ -2,12 +2,15 @@ import os
 import tempfile
 import torch
 import torch.nn as nn
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import mlflow
 import mlflow.pytorch
 import mlflow.pyfunc
 import base64
+from evidently import Report
+from evidently.presets import DataDriftPreset
 from training_utils.wrapper import BiomassPyFuncWrapper
 from io import BytesIO
 from dagster import MetadataValue
@@ -39,6 +42,10 @@ CSV_CANDIDATES = [
     os.path.join(BASE_DIR, 'digital_biomass_labels.csv'),
     os.path.join(BASE_DIR, 'mlops_biomass_data', 'digital_biomass_labels.xlsx'),
 ]
+
+PROD_IMAGES_DIR = os.path.join(BASE_DIR, 'production_data', 'images')
+RESULTS_DIR = os.path.join(BASE_DIR, 'results')
+MODEL_NAME = "biomass_resnet"
 
 _MLFLOW_DB_URI = f"sqlite:///{os.path.join(BASE_DIR, 'mlflow.db')}"
 
@@ -74,6 +81,11 @@ class PlantDataset(Dataset):
         label = torch.tensor(float(row['fresh_weight_total']), dtype=torch.float32)
         if self.transform: img = self.transform(img)
         return img, label
+
+def mean_pixel_intensity(image_path: str) -> float:
+    """Mean grayscale pixel intensity of an image, used as a simple drift signal."""
+    with Image.open(image_path) as img:
+        return float(np.array(img.convert('L')).mean())
 
 def select_device():
     if torch.backends.mps.is_available():
@@ -196,13 +208,17 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict, confi
         torch.save(model, model_path)
         with open(max_val_path, "w") as f:
             f.write(str(preprocessed_data["max_weight_val"]))
-        mlflow.pyfunc.log_model(
+        model_info = mlflow.pyfunc.log_model(
             artifact_path="model",
             python_model=BiomassPyFuncWrapper(),
             artifacts={"torch_model": model_path, "max_weight_val": max_val_path},
             code_paths=[os.path.join(BASE_DIR, "training_utils")],
+            registered_model_name=MODEL_NAME,
         )
-    context.log.info("Model successfully saved to MLflow.")
+    context.log.info(
+        f"Model successfully saved to MLflow and registered as "
+        f"'{MODEL_NAME}' version {model_info.registered_model_version}."
+    )
 
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(range(1, len(train_losses) + 1), train_losses, label='Train Loss', marker='o')
@@ -230,7 +246,12 @@ def trained_model(context: AssetExecutionContext, preprocessed_data: dict, confi
         "mlflow_ui": MetadataValue.url("http://localhost:5000"),
     })
 
-    return {"model": model, "train_losses": train_losses, "val_losses": val_losses}
+    return {
+        "model": model,
+        "train_losses": train_losses,
+        "val_losses": val_losses,
+        "model_version": model_info.registered_model_version,
+    }
 
 
 
@@ -308,13 +329,120 @@ def model_evaluation(
     }
 
 
+@asset(required_resource_keys={"mlflow"})
+def champion_model(
+    context: AssetExecutionContext,
+    trained_model: dict,
+    model_evaluation: dict,
+) -> str:
+    """Promote the freshly trained & evaluated model version to the @champion alias"""
+    client = mlflow.tracking.MlflowClient()
+    version = trained_model["model_version"]
+    client.set_registered_model_alias(MODEL_NAME, "champion", version)
+    context.log.info(f"Promoted '{MODEL_NAME}' version {version} to alias 'champion'.")
+
+    context.add_output_metadata({
+        "model_name": MetadataValue.text(MODEL_NAME),
+        "model_version": MetadataValue.text(str(version)),
+        "final_val_rmse_grams": MetadataValue.float(model_evaluation["final_val_rmse_grams"]),
+    })
+    return f"models:/{MODEL_NAME}@champion"
+
+
+# ==========================================
+# DATA DRIFT MONITORING (EVIDENTLY)
+# ==========================================
+
+@asset
+def reference_mean_pixel(context: AssetExecutionContext, raw_dataset: dict) -> pd.DataFrame:
+    """Mean pixel intensity per training image - reference distribution for drift detection"""
+    image_paths = raw_dataset["image_paths"]
+    values = [mean_pixel_intensity(p) for p in image_paths]
+    context.log.info(f"Computed reference mean pixel intensity for {len(values)} training images.")
+    return pd.DataFrame({"mean_pixel_intensity": values})
+
+
+@asset
+def production_mean_pixel(context: AssetExecutionContext) -> pd.DataFrame:
+    """Mean pixel intensity per production image logged via the Gradio app - current distribution"""
+    if not os.path.isdir(PROD_IMAGES_DIR):
+        context.log.warning(f"No production images found at {PROD_IMAGES_DIR}.")
+        return pd.DataFrame({"mean_pixel_intensity": []})
+
+    image_paths = [
+        os.path.join(PROD_IMAGES_DIR, f)
+        for f in os.listdir(PROD_IMAGES_DIR)
+        if f.endswith(('.png', '.jpg', '.jpeg'))
+    ]
+    values = [mean_pixel_intensity(p) for p in image_paths]
+    context.log.info(f"Computed production mean pixel intensity for {len(values)} production images.")
+    return pd.DataFrame({"mean_pixel_intensity": values})
+
+
+@asset(required_resource_keys={"mlflow"})
+def drift_report(
+    context: AssetExecutionContext,
+    reference_mean_pixel: pd.DataFrame,
+    production_mean_pixel: pd.DataFrame,
+) -> str:
+    """Compare reference vs. production mean pixel intensity with Evidently's DataDriftPreset"""
+    if production_mean_pixel.empty:
+        context.log.warning("No production data logged yet - skipping drift report.")
+        return ""
+
+    report = Report(metrics=[DataDriftPreset()])
+    snapshot = report.run(current_data=production_mean_pixel, reference_data=reference_mean_pixel)
+
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    report_path = os.path.join(RESULTS_DIR, "drift_report.html")
+    snapshot.save_html(report_path)
+    context.log.info(f"Drift report saved to: {report_path}")
+
+    drift_share = None
+    drift_score = None
+    drift_method = None
+    for metric in snapshot.dict()["metrics"]:
+        name = metric["metric_name"]
+        if name.startswith("DriftedColumnsCount"):
+            drift_share = float(metric["value"]["share"])
+        elif name.startswith("ValueDrift"):
+            drift_score = float(metric["value"])
+            drift_method = metric["config"].get("method", "unknown")
+
+    # dagster_mlflow resource already started a run — log directly into it
+    # Evidently picks the per-column test automatically (e.g. K-S test for small
+    # reference sets, Wasserstein distance for larger ones) - see README for details.
+    mlflow.log_artifact(report_path)
+    if drift_share is not None:
+        mlflow.log_metric("drift_share", drift_share)
+    if drift_score is not None:
+        mlflow.log_metric("mean_pixel_drift_score", drift_score)
+
+    context.add_output_metadata({
+        "drift_detected": MetadataValue.bool(bool(drift_share)) if drift_share is not None else MetadataValue.text("n/a"),
+        "drift_score": MetadataValue.float(drift_score) if drift_score is not None else MetadataValue.text("n/a"),
+        "drift_method": MetadataValue.text(drift_method or "n/a"),
+        "report_path": MetadataValue.path(report_path),
+    })
+
+    return report_path
+
 
 # ==========================================
 # DAGSTER DEFINITIONS & RESOURCES
 # ==========================================
 
 defs = Definitions(
-    assets=[raw_dataset, preprocessed_data, trained_model, model_evaluation],
+    assets=[
+        raw_dataset,
+        preprocessed_data,
+        trained_model,
+        model_evaluation,
+        champion_model,
+        reference_mean_pixel,
+        production_mean_pixel,
+        drift_report,
+    ],
     resources={
         "mlflow": mlflow_tracking.configured({
             "experiment_name": "plant_biomass_pipeline",
