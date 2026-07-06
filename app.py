@@ -1,8 +1,8 @@
 import csv
 import os
+import numpy as np
 from datetime import datetime
 from pathlib import Path
-
 import gradio as gr
 import mlflow.pyfunc
 from PIL import Image
@@ -19,36 +19,39 @@ PROD_DIR = Path("production_data")
 IMAGES_DIR = PROD_DIR / "images"
 LOGS_CSV = PROD_DIR / "logs.csv"
 
-
 def log_inference(image: Image.Image, prediction: float) -> str:
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     image_path = IMAGES_DIR / f"{timestamp}.png"
     image.save(image_path)
-
+    
     write_header = not LOGS_CSV.exists()
     with open(LOGS_CSV, "a", newline="") as f:
         writer = csv.writer(f)
         if write_header:
             writer.writerow(["timestamp", "image_path", "prediction"])
         writer.writerow([timestamp, str(image_path), prediction])
-
     return timestamp
-
 
 def predict(image: Image.Image) -> str:
     if model is None:
-        return "Error: model could not be loaded. Check that 'biomass_resnet@Champion' exists in MLflow."
+        return "Error: model could not be loaded. Check that 'biomass_resnet@champion' exists in MLflow."
     if image is None:
         return "Please upload an image."
-
+    
+    # MLflow Batch-Inferenz ausführen (Liste übergeben)
     result = model.predict([image])
-    prediction = result[0]
-
+    
+    # Sicherstellen, dass wir eine native Python-Zahl extrahieren
+    if hasattr(result, "item"):
+        prediction = result.item()
+    elif isinstance(result, (list, np.ndarray)):
+        prediction = float(result[0])
+    else:
+        prediction = float(result)
+        
     log_inference(image, prediction)
-
     return f"Predicted biomass: {prediction:.2f}g"
-
 
 iface = gr.Interface(
     fn=predict,
