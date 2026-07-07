@@ -130,7 +130,7 @@ def raw_dataset(context: AssetExecutionContext, config: TrainingConfig) -> dict:
                 context.log.warning(f"Additional data folder not found: {folder_path}")
                 continue
             
-            # Suchen nach einer Label-Datei im Produktionsordner (z.B. logs.csv)
+            # Suchen nach einer Label-Datei im Produktionsordner (z.B. logs.csv oder labels.csv)
             possible_csv = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(('.csv', '.xlsx'))]
             if not possible_csv:
                 context.log.warning(f"No label or log file found in folder: {folder_path}")
@@ -156,7 +156,7 @@ def raw_dataset(context: AssetExecutionContext, config: TrainingConfig) -> dict:
                 
                 # Pfade absolutieren, damit os.path.join im Dataset funktioniert
                 prod_df['filename'] = prod_df['filename'].apply(
-                    lambda x: os.path.abspath(os.path.join(BASE_DIR, x)) if not os.isabs(x) else x
+                    lambda x: os.path.abspath(os.path.join(BASE_DIR, x)) if not os.path.path.isabs(x) else x
                 )
                 
                 # Produktionsbilder zur Pfadliste hinzufügen
@@ -377,18 +377,34 @@ def champion_model(
     context: AssetExecutionContext,     
     trained_model: dict,     
     model_evaluation: dict, 
+    config: TrainingConfig,
 ) -> str:     
-    """Promote the freshly trained & evaluated model version to the @champion alias"""     
+    """Promote the freshly trained model version to either @champion or @challenger alias"""     
     client = mlflow.tracking.MlflowClient()     
     version = trained_model["model_version"]     
-    client.set_registered_model_alias(MODEL_NAME, "champion", version)     
-    context.log.info(f"Promoted '{MODEL_NAME}' version {version} to alias 'champion'.")     
+    
+    # Bestimme die Rolle anhand der genutzten Ordnerkonfiguration
+    if "production_data_measured" in config.additional_data_folders:
+        alias_name = "challenger"
+        context.log.info(f"Retraining with drifted data detected. Promoting as '{alias_name}'.")
+    else:
+        alias_name = "champion"
+        context.log.info(f"Standard training detected. Promoting as '{alias_name}'.")
+        
+    # Alias in MLflow setzen (setzt automatisch das Tag/Alias im Model Registry)
+    client.set_registered_model_alias(MODEL_NAME, alias_name, version)     
+    
+    # Zusätzlich setzen wir ein Tag im aktuellen MLflow-Run zur besseren Übersicht
+    mlflow.set_tag("model_role", alias_name.capitalize())
+    
+    context.log.info(f"Promoted '{MODEL_NAME}' version {version} to alias '{alias_name}'.")     
     context.add_output_metadata({         
         "model_name": MetadataValue.text(MODEL_NAME),         
         "model_version": MetadataValue.text(str(version)),         
+        "assigned_alias": MetadataValue.text(alias_name),
         "final_val_rmse_grams": MetadataValue.float(model_evaluation["final_val_rmse_grams"]),     
     })     
-    return f"models:/{MODEL_NAME}@champion" 
+    return f"models:/{MODEL_NAME}@{alias_name}" 
 
 # ========================================== # 
 # DATA DRIFT MONITORING (EVIDENTLY)          # 
