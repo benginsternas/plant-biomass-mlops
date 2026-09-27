@@ -1,0 +1,12 @@
+torch
+torchvision
+pandas
+matplotlib
+seaborn
+scikit-learn
+Pillow
+openpyxl
+dagster
+dagster-webserver
+dagster-mlflow
+mlflow
