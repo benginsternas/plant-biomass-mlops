@@ -1,0 +1,13 @@
+torch
+torchvision
+pandas
+matplotlib
+scikit-learn
+Pillow
+openpyxl
+dagster
+dagster-webserver
+dagster-mlflow
+mlflow
+gradio
+evidently
