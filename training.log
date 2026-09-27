@@ -1,0 +1,22 @@
+Start training: epochs=3, lr=0.001
+Start training: epochs=3, lr=0.001
+Start training: epochs=3, lr=0.001
+Epoch 1: Loss nan
+2026-04-28 17:56:52,294 - Start: Git=8369e5f97b9344c58441777fec28797c4b269421, Epochs=3, LR=0.0001, MaxWeight=2.113
+2026-04-28 18:00:29,154 - Epoch 1: Train_Loss=0.0398, Val_Loss=0.0348
+2026-04-28 18:03:51,556 - Epoch 2: Train_Loss=0.0074, Val_Loss=0.0163
+2026-04-28 18:17:54,161 - Epoch 3: Train_Loss=0.0044, Val_Loss=0.0085
+2026-04-29 17:27:59,804 - Start: Git=5e5abe4d32a39e6210feb7cb23585956eb5bd607, Epochs=3, LR=0.0001, MaxWeight=2.113
+2026-04-29 17:32:26,128 - Epoch 1: Train_Loss=0.0392, Val_Loss=0.0268
+2026-04-29 17:37:03,525 - Epoch 2: Train_Loss=0.0092, Val_Loss=0.0114
+2026-04-29 17:41:13,771 - Epoch 3: Train_Loss=0.0040, Val_Loss=0.0062
+2026-04-29 18:01:27,819 - Start: Git=5e5abe4d32a39e6210feb7cb23585956eb5bd607, Epochs=3, LR=0.0001, MaxWeight=2.113
+2026-04-29 18:04:52,928 - Epoch 1: Train_Loss=0.0365, Val_Loss=0.0253
+2026-04-29 18:08:18,728 - Epoch 2: Train_Loss=0.0090, Val_Loss=0.0073
+2026-04-29 18:11:49,450 - Epoch 3: Train_Loss=0.0044, Val_Loss=0.0072
+2026-05-06 22:08:36,645 - Start: Git=0219bcf671f6068b2904cf707be0e8bca1ada346, Epochs=3, LR=1e-06, MaxWeight=2.113
+2026-05-06 22:13:23,303 - Start: Git=0219bcf671f6068b2904cf707be0e8bca1ada346, Epochs=3, LR=1e-06, MaxWeight=2.113
+2026-05-06 22:18:30,459 - Start: Git=0219bcf671f6068b2904cf707be0e8bca1ada346, Epochs=3, LR=1e-06, MaxWeight=2.113
+2026-05-06 22:20:34,089 - Epoch 1: Train_Loss=0.4969, Val_Loss=0.4349
+2026-05-06 22:22:37,842 - Epoch 2: Train_Loss=0.3482, Val_Loss=0.3188
+2026-05-06 22:24:41,296 - Epoch 3: Train_Loss=0.2413, Val_Loss=0.2241
