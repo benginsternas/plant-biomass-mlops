@@ -38,6 +38,63 @@ graph LR
 
 ---
 
+## Key Results
+
+| Metric | Value |
+|---|---|
+| Dataset | 4,294 top-down RGB images of plants with fresh-weight labels |
+| Model | ResNet-18 (ImageNet weights), single-output regression head |
+| Validation MSE (targets scaled to [0, 1]) | **0.0072** (train: 0.0044) after 3 epochs |
+| Validation RMSE (derived: √0.0072 × max weight 2.113) | ≈ 0.18 in label units (fresh weight) |
+| Pipeline | 8 Dagster assets, MLflow tracking and model registry (`@champion` / `@challenger`) |
+| Drift under simulated camera failure | Wasserstein score **4.52** vs. threshold 0.1 (about 45x above it) |
+| Drift on non-drifted data (n ≥ 200) | score 0.06 to 0.09, correctly not flagged |
+
+### Exploratory Data Analysis (Lab 1)
+
+The target is right-skewed (many young, light plants) and grows with plant age. Image intensities are dominated by dark soil and background, which motivated the mean pixel intensity as a cheap drift signal later on.
+
+| Target distribution | Biomass vs. age |
+|---|---|
+| ![Target distribution](lab-1/figures/target_distribution.png) | ![Biomass vs. age](lab-1/figures/age_vs_biomass.png) |
+
+| Correlation with sensor data | Pixel analysis |
+|---|---|
+| ![Correlation heatmap](lab-1/figures/correlation_heatmap.png) | ![Image pixel analysis](lab-1/figures/image_pixel_analysis.png) |
+
+![Sample images](lab-1/figures/sample_images.png)
+
+### Training and Experiment Tracking (Lab 1 and 2)
+
+Targets are scaled by the maximum weight, which fixed NaN losses in early runs. Train and validation loss converge without divergence (the Dagster `model_evaluation` asset produces the plot):
+
+![Training curves](lab-2/dagster_training_curves.png)
+
+Each pipeline run is orchestrated by Dagster and tracked in MLflow (parameters, per-epoch metrics, model artifact):
+
+| Dagster pipeline run | MLflow experiment tracking |
+|---|---|
+| ![Dagster run](lab-2/screenshots/dagster_successful_run.png) | ![MLflow experiments](lab-2/screenshots/mlflow_experiments.png) |
+
+### Serving and Drift Monitoring (Lab 3)
+
+The registered `@champion` model is served through a Gradio UI that logs every prediction. Evidently compares the mean pixel intensity of production images against the training set:
+
+![Gradio UI](lab-3/screenshots/gradio_ui.png)
+
+![Drift summary](docs/figures/drift_summary.png)
+
+* **Left:** drift scores for samples drawn from the training distribution itself. Small batches trigger false alarms; from roughly 200 images on, the score stays below the 0.1 threshold. Drift verdicts therefore need enough accumulated production data.
+* **Right:** a simulated broken camera (brightness x3.5, 90° rotation, Gaussian noise) raises the score from the 0.06 no-drift level to 4.52.
+
+| Simulated drift (n=13) | Validated no-drift (n=250) |
+|---|---|
+| ![Drift report](lab-3/screenshots/drift_report.png) | ![No drift report](lab-3/screenshots/drift_report_no_drift.png) |
+
+The interactive reports are in [`lab-3/results/`](./lab-3/results). The summary figure is reproducible via `python docs/make_figures.py`.
+
+---
+
 ## Repository Structure
 
 * **[`lab-1/`](./lab-1)** – **Baseline Modeling & EDA:** Initial exploratory data analysis, resolution handling, data cleaning, and PyTorch ResNet-18 baseline training.
